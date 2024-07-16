@@ -17,7 +17,7 @@ import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.set_default_device(device)
 
-imsize = (512, 512) 
+imsize = (256, 256) 
 
 loader = transforms.Compose([
     transforms.Resize(imsize),
@@ -156,7 +156,7 @@ def get_input_optimizer(input_img):
   return optimizer
 
 def style_transfer(cnn, normalization_mean, normalization_std,
-                   content_img, style_img, input_img, num_steps = 50,
+                   content_img, style_img, input_img, num_steps = 150,
                    style_weight = 1000000, content_weight = 1):
 
   model, style_losses, content_losses = get_style_model_and_losses(cnn,
@@ -203,7 +203,7 @@ def style_transfer(cnn, normalization_mean, normalization_std,
   return input_img
 
 
-filepath = "C:/content_1.mp4"
+filepath = "C:/content_3.mp4"
 
 cap = cv2.VideoCapture(filepath)
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -220,7 +220,7 @@ cnt = 0
 while cap.isOpened():
   ret, frame = cap.read()
   if ret:
-    if cnt % 10 == 0:
+    if cnt % 5 == 0:
       print(cnt)  
       
       content_img = OpenCV2PIL(frame)      # type: PILImage
@@ -231,11 +231,8 @@ while cap.isOpened():
       output = output.squeeze(0)
       output = unloader(output)
       output = PIL2OpenCV(output)
-      if output.shape[1] != width or output.shape[0] != height:
-          output = cv2.resize(output, (width, height))
+      output = cv2.resize(output, (width, height))
       out.write(output)
-      cv2.imshow('Styled Frame', output)
-      cv2.waitKey(1)
 
     cnt += 1
   else:

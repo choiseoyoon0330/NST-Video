@@ -1,246 +1,265 @@
-import sys
-import cv2 
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-from PIL import Image
 
 import torchvision.transforms as transforms
-from torchvision.models import vgg19, VGG19_Weights
+from torchvision.utils import save_image
 
+from PIL import Image
+from IPython.display import Image as display_image
+
+import cv2 as cv
+import sys
 import numpy as np
 
+def calc_mean_std(feat, eps = 1e-5):
+  size = feat.size()
+  assert (len(size) == 4)
+  N, C = size[:2]
+  feat_var = feat.view(N, C, -1).var(dim = 2) + eps
+  feat_std = feat_var.sqrt().view(N, C, 1, 1)
+  feat_mean = feat.view(N, C, -1).mean(dim = 2).view(N, C, 1, 1)
+  return feat_mean, feat_std
+
+def adain(content_feat, style_feat):
+  assert (content_feat.size()[:2] == style_feat.size()[:2])
+  size = content_feat.size()
+  style_mean, style_std = calc_mean_std(style_feat)
+  content_mean, content_std = calc_mean_std(content_feat)
+
+  normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
+  return normalized_feat * style_std.expand(size) + style_mean.expand(size)
+
+vgg = nn.Sequential(
+    nn.Conv2d(3, 3, (1, 1)),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(3, 64, (3, 3)),
+    nn.ReLU(), # relu1-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 64, (3, 3)),
+    nn.ReLU(), # relu1-2
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 128, (3, 3)),
+    nn.ReLU(), # relu2-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 128, (3, 3)),
+    nn.ReLU(), # relu2-2
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 256, (3, 3)),
+    nn.ReLU(), # relu3-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(), # relu3-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(), # relu3-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(), # relu3-4
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 512, (3, 3)),
+    nn.ReLU(), # relu4-1, this is the last layer used
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu4-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu4-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu4-4
+    nn.MaxPool2d((2, 2), (2, 2), (0, 0), ceil_mode=True),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu5-1
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu5-2
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU(), # relu5-3
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 512, (3, 3)),
+    nn.ReLU() # relu5-4
+)
+
+decoder = nn.Sequential(
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(512, 256, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode='nearest'),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 256, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(256, 128, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode='nearest'),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 128, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(128, 64, (3, 3)),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2, mode='nearest'),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 64, (3, 3)),
+    nn.ReLU(),
+    nn.ReflectionPad2d((1, 1, 1, 1)),
+    nn.Conv2d(64, 3, (3, 3)),
+)
+
+class Net(nn.Module):
+    def __init__(self, encoder, decoder):
+        super(Net, self).__init__()
+        enc_layers = list(encoder.children())
+        self.enc_1 = nn.Sequential(*enc_layers[:4]) # input -> relu1_1
+        self.enc_2 = nn.Sequential(*enc_layers[4:11]) # relu1_1 -> relu2_1
+        self.enc_3 = nn.Sequential(*enc_layers[11:18]) # relu2_1 -> relu3_1
+        self.enc_4 = nn.Sequential(*enc_layers[18:31]) # relu3_1 -> relu4_1
+        self.decoder = decoder
+        self.mse_loss = nn.MSELoss()
+
+        for name in ['enc_1', 'enc_2', 'enc_3', 'enc_4']:
+            for param in getattr(self, name).parameters():
+                param.requires_grad = False
+
+    def encode_with_intermediate(self, input):
+        results = [input]
+        for i in range(4):
+            func = getattr(self, 'enc_{:d}'.format(i + 1))
+            results.append(func(results[-1]))
+        return results[1:]
+
+    def encode(self, input):
+        for i in range(4):
+            input = getattr(self, 'enc_{:d}'.format(i + 1))(input)
+        return input
+
+    def calc_content_loss(self, input, target):
+        assert (input.size() == target.size())
+        assert (target.requires_grad is False)
+        return self.mse_loss(input, target)
+
+    def calc_style_loss(self, input, target):
+        assert (input.size() == target.size())
+        assert (target.requires_grad is False)
+        input_mean, input_std = calc_mean_std(input)
+        target_mean, target_std = calc_mean_std(target)
+        return self.mse_loss(input_mean, target_mean) + self.mse_loss(input_std, target_std)
+
+    def forward(self, content, style, alpha=1.0):
+        assert 0 <= alpha <= 1 
+        style_feats = self.encode_with_intermediate(style)
+        content_feat = self.encode(content)
+        t = adain(content_feat, style_feats[-1])
+        t = alpha * t + (1 - alpha) * content_feat
+        g_t = self.decoder(t) 
+        g_t_feats = self.encode_with_intermediate(g_t)
+
+        loss_c = self.calc_content_loss(g_t_feats[-1], t)
+        loss_s = self.calc_style_loss(g_t_feats[0], style_feats[0])
+        for i in range(1, 4):
+            loss_s += self.calc_style_loss(g_t_feats[i], style_feats[i])
+        return loss_c, loss_s
+
+decoder.eval()
+vgg.eval()
+
+vgg_path = 'vgg_normalised.pth'
+decoder_path = 'decoder.pth'
+
+decoder.load_state_dict(torch.load(decoder_path))
+vgg.load_state_dict(torch.load(vgg_path))
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-torch.set_default_device(device)
+vgg.to(device)
+decoder.to(device)
 
-imsize = (256, 256) 
+vgg = nn.Sequential(*list(vgg.children())[:31])   
 
-loader = transforms.Compose([
-    transforms.Resize(imsize),
-    transforms.ToTensor()
-])
 
-def image_loader(image):
-  image = loader(image).unsqueeze(0)
-  return image.to(device, torch.float)
-
-def OpenCV2PIL(opencv_img):
-    color_converted = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(color_converted)
-    return pil_img
-
-def PIL2OpenCV(pil_img):
-    numpy_img = np.array(pil_img)
-    opencv_img = cv2.cvtColor(numpy_img, cv2.COLOR_RGB2BGR)
-    return opencv_img
-
-style_img = cv2.imread("C:\style_1.jpg")      # type: OpenCV
-
-if style_img is None:
-    sys.exit('파일을 찾을 수 없습니다')
     
-cv2.imshow('Image Display', style_img)
-cv2.waitKey(1000)
-cv2.destroyAllWindows()
+def style_transfer(vgg, decoder, content, style, alpha = 1.0):
+  assert (0.0 <= alpha <= 1.0)
+  content_f = vgg(content)
+  style_f = vgg(style)
+  feat = adain(content_f, style_f)
+  feat = feat * alpha + content_f * (1 - alpha)
+  return decoder(feat)
 
-style_img = OpenCV2PIL(style_img)             # type: PILImage
-style_img = image_loader(style_img)           # type: Tensor
+def test_transform(size = 512):
+  transform_list = []
+  if size != 0:
+    transform_list.append(transforms.Resize(size))
+  transform_list.append(transforms.ToTensor())
+  transform = transforms.Compose(transform_list)
+  return transform
 
+content_tf = test_transform()
+style_tf = test_transform()
+
+def OpenCV2PIL(opencv_image):
+    color_coverted = cv.cvtColor(opencv_image, cv.COLOR_BGR2RGB)
+    pil_image = Image.fromarray(color_coverted)
+    return pil_image
+
+def PIL2OpenCV(pil_image):
+    numpy_image= np.array(pil_image)
+    opencv_image = cv.cvtColor(numpy_image, cv.COLOR_RGB2BGR)
+    return opencv_image
 
 unloader = transforms.ToPILImage()
 
+style_path = 'style_2.jpg'
+display_image(style_path)
 
-class ContentLoss(nn.Module):
+video_path = "content_3.mp4"
+output_path = "C:/frames/output.mp4" 
 
-  def __init__(self, target):
-    super(ContentLoss, self).__init__()
-    self.target = target.detach()
+cap = cv.VideoCapture(video_path)
+width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+fourcc = cv.VideoWriter_fourcc(*'mp4v')
 
-  def forward(self, input):
-    self.loss = F.mse_loss(input, self.target)
-    return input
-
-def gram_matrix(input):
-  n, c, h, w = input.size()
-
-  features = input.view(n * c, h * w)
-
-  G = torch.mm(features, features.t())
-
-  return G.div(n * c * h * w)
-
-class StyleLoss(nn.Module):
-
-  def __init__(self, target_feature):
-    super(StyleLoss, self).__init__()
-    self.target = gram_matrix(target_feature).detach()
-
-  def forward(self, input):
-    G = gram_matrix(input)
-    self.loss = F.mse_loss(G, self.target)
-    return input
-
-cnn = vgg19(weights=VGG19_Weights.DEFAULT).features.eval()
-
-mean_rgb = torch.tensor([0.485, 0.456, 0.406])
-std_rgb = torch.tensor([0.229, 0.224, 0.225])
-
-class Normalization(nn.Module):
-
-  def __init__(self, mean, std):
-    super(Normalization, self).__init__()
-    self.mean = torch.tensor(mean).view(-1, 1, 1)
-    self.std = torch.tensor(std).view(-1, 1, 1)
-
-  def forward(self, img):
-    return (img - self.mean) / self.std
-
-content_layers_default = ['conv_4']
-style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
-
-def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
-                               style_img, content_img,
-                               content_layers = content_layers_default,
-                               style_layers = style_layers_default):
-
-  normalization = Normalization(normalization_mean, normalization_std)
-
-  content_losses = []
-  style_losses = []
-
-  model = nn.Sequential(normalization)
-
-  i = 0
-  for layer in cnn.children():
-    if isinstance(layer, nn.Conv2d):
-      i += 1
-      name = 'conv_{}'.format(i)
-    elif isinstance(layer, nn.ReLU):
-      name = 'relu_{}'.format(i)
-      layer = nn.ReLU(inplace = False)
-    elif isinstance(layer, nn.MaxPool2d):
-      name = 'pool_{}'.format(i)
-    elif isinstance(layer, nn.BatchNorm2d):
-      name = 'bn_{}'.format(i)
-    else:
-      raise RuntimeError('Unrecognized Layer : {}'.format(layer.__class__.__name__))
-
-    model.add_module(name, layer)
-
-    if name in content_layers:
-      target = model(content_img).detach()
-      content_loss = ContentLoss(target)
-      model.add_module('content_loss_{}'.format(i), content_loss)
-      content_losses.append(content_loss)
-
-    if name in style_layers:
-      target_feature = model(style_img).detach()
-      style_loss = StyleLoss(target_feature)
-      model.add_module('style_loss_{}'.format(i), style_loss)
-      style_losses.append(style_loss)
-
-  for i in range(len(model) - 1, -1, -1):
-    if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
-      break
-
-  model = model[:(i + 1)]
-
-  return model, style_losses, content_losses
-
-def get_input_optimizer(input_img):
-  optimizer = optim.LBFGS([input_img])
-  return optimizer
-
-def style_transfer(cnn, normalization_mean, normalization_std,
-                   content_img, style_img, input_img, num_steps = 150,
-                   style_weight = 1000000, content_weight = 1):
-
-  model, style_losses, content_losses = get_style_model_and_losses(cnn,
-      normalization_mean, normalization_std, style_img, content_img)
-
-  input_img.requires_grad_(True)
-
-  model.eval()
-  model.requires_grad_(False)
-
-  optimizer = get_input_optimizer(input_img)
+cnt = 0
 
 
-  run = [0]
-  while run[0] <= num_steps:
+fps = cap.get(cv.CAP_PROP_FPS)
+out = cv.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    def closure():
-      with torch.no_grad():
-        input_img.clamp_(0, 1)
-
-      optimizer.zero_grad()
-      model(input_img)
-      style_score = 0
-      content_score = 0
-
-      for sl in style_losses:
-        style_score += sl.loss
-      for cl in content_losses:
-        content_score += cl.loss
-
-      style_score *= style_weight
-      content_score *= content_weight
-
-      loss = style_score + content_score
-      loss.backward()
-      run[0] += 1
-
-      return style_score + content_score
-
-    optimizer.step(closure)
-  with torch.no_grad():
-    input_img.clamp_(0, 1)
-
-  return input_img
-
-
-filepath = "C:/content_3.mp4"
-
-cap = cv2.VideoCapture(filepath)
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-output_path = "C:/frames/output.mp4"
-fps = cap.get(cv2.CAP_PROP_FPS)
-out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+style = style_tf(Image.open(str(style_path)))
+style = style.to(device).unsqueeze(0)
 
 if not out.isOpened():
-    sys.exit(f'Unable to open the video: {output_path}')
-    
-cnt = 0
+  sys.exit(f'Unable to open the video: {output_path}')
+
 while cap.isOpened():
   ret, frame = cap.read()
   if ret:
-    if cnt % 5 == 0:
-      print(cnt)  
-      
-      content_img = OpenCV2PIL(frame)      # type: PILImage
-      content_img = image_loader(content_img)   
-      input_img = content_img.clone()
-      output = style_transfer(cnn, mean_rgb, std_rgb,
-                        content_img, style_img, input_img)
-      output = output.squeeze(0)
-      output = unloader(output)
-      output = PIL2OpenCV(output)
-      output = cv2.resize(output, (width, height))
-      out.write(output)
-
+    content = OpenCV2PIL(frame)
+    content = content_tf(content)
+    content = content.to(device).unsqueeze(0)
+    output = style_transfer(vgg, decoder, content, style, alpha = 1.0)
+    output = output.squeeze(0)
+    output = PIL2OpenCV(unloader(output))
+    output = cv.resize(output, (width, height), cv.INTER_LINEAR)
+    out.write(output)
+    print(cnt)
     cnt += 1
   else:
     break
 
 out.release()
 cap.release()
-cv2.destroyAllWindows()
+cv.destroyAllWindows()
 
 print(f'Video Saved: {output_path}')
-

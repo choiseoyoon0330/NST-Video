@@ -1,2 +1,2 @@
 # NST_Video
-Neural Style Transfer in Video
+Neural Style Transfer for Video

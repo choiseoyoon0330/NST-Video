@@ -20,4 +20,17 @@ https://github.com/user-attachments/assets/c2185317-a53c-4575-97f8-163cfe9a39de
 https://github.com/user-attachments/assets/ac808c0c-8fa6-4242-98d2-34f432285e7a
 
 
+## Style Image
+![style_1](https://github.com/user-attachments/assets/293d7432-23de-4498-bdbe-556190100a4e)
+
+## Content Video
+
+
+https://github.com/user-attachments/assets/02dcd40a-b44f-461f-a176-d8b37b51d442
+
+
+
+
+
+
 

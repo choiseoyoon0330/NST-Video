@@ -1,7 +1,7 @@
 # NST_Video
 Neural Style Transfer for Video
 
-Applied [AdaIN](https://arxiv.org/abs/1703.06868) to the video
+Applied [AdaIN](https://arxiv.org/abs/1703.06868) (Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization) to the video
 
 
 ## Style Image

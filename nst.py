@@ -207,11 +207,6 @@ def test_transform(size = 512):
 content_tf = test_transform()
 style_tf = test_transform()
 
-def OpenCV2PIL(opencv_image):
-    color_coverted = cv.cvtColor(opencv_image, cv.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(color_coverted)
-    return pil_image
-
 def PIL2OpenCV(pil_image):
     numpy_image= np.array(pil_image)
     opencv_image = cv.cvtColor(numpy_image, cv.COLOR_RGB2BGR)
@@ -223,7 +218,7 @@ style_path = 'style_2.jpg'
 display_image(style_path)
 
 video_path = "content_3.mp4"
-output_path = "C:/frames/output.mp4" 
+output_path = "output.mp4" 
 
 cap = cv.VideoCapture(video_path)
 width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
@@ -245,15 +240,18 @@ if not out.isOpened():
 while cap.isOpened():
   ret, frame = cap.read()
   if ret:
-    content = OpenCV2PIL(frame)
-    content = content_tf(content)
+    print(cnt)
+    content = content_tf(Image.fromarray(frame))
     content = content.to(device).unsqueeze(0)
-    output = style_transfer(vgg, decoder, content, style, alpha = 1.0)
+    with torch.no_grad():
+      output = style_transfer(vgg, decoder, content, style, alpha = 1.0)
+    if (output < 0).any() or (output > 1).any():
+      output = torch.clamp(output, min=0, max=1)
     output = output.squeeze(0)
-    output = PIL2OpenCV(unloader(output))
+    output = unloader(output)
+    output = PIL2OpenCV(output)
     output = cv.resize(output, (width, height), cv.INTER_LINEAR)
     out.write(output)
-    print(cnt)
     cnt += 1
   else:
     break

@@ -5,7 +5,7 @@ Applied [AdaIN](https://arxiv.org/abs/1703.06868) (Arbitrary Style Transfer in R
 
 
 ## Style Image
-![style_2](https://github.com/user-attachments/assets/9a9e8259-cc2b-4cf2-bda5-0724a34f72f3)
+<img src="https://github.com/user-attachments/assets/9a9e8259-cc2b-4cf2-bda5-0724a34f72f3" width="50%" height="50%" >
 
 ## Content Video
 
@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/ac808c0c-8fa6-4242-98d2-34f432285e7a
 
 
 ## Style Image
-![style_1](https://github.com/user-attachments/assets/293d7432-23de-4498-bdbe-556190100a4e)
+<img src="https://github.com/user-attachments/assets/293d7432-23de-4498-bdbe-556190100a4e" width="50%" height="50%" >
 
 ## Content Video
 

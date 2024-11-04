@@ -1,4 +1,4 @@
-# NST_Video
+# NST-Video
 
 This project applies [AdaIN](https://arxiv.org/abs/1703.06868) (Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization) to video frames, allowing users to create artistic videos by transferring the style of a static image to a video.
 

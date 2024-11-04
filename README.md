@@ -1,4 +1,36 @@
 # NST_Video
+
+This project applies Neural Style Transfer (NST) to video frames, allowing users to create artistic videos by transferring the style of a static image to a video.
+
+## Project Structure
+- **`/data`**: Contains the images and videos for NST application.
+- **`/models`**: Stores pre-trained deep learning models.
+- **`/results`**: Contains the generated styled videos.
+- **`nst_video.py`**: Main pipeline code for applying NST.
+- **`utils.py`**: Utility functions for data handling and model loading.
+
+## Usage
+
+1. Prepare a style image and content video. Place the style image and content video in the `/data` folder.
+
+2. Apply NST model to the video:
+   ```bash
+   python nst_video.py --content_video path/to/content_video.mp4 --style_image path/to/style_image.jpg --output path/to/output_video.mp4
+3. Options
+  - **`--content_video`**:  Path to the content video
+  - **`--style_image`**:  Path to the style image
+  - **`--output`**:  Path to save the output video
+
+## Example
+- Style Image: **`data/style_image.jpg`**
+- Content Video: **`data/content_video.mp4`**
+Command:
+    ```bash
+    python nst_video.py --content_video data/content_video.mp4 --style_image data/style_image.jpg --output results/stylized_video.mp4
+
+## Results
+
+<!-- # NST_Video
 Neural Style Transfer for Video
 
 Applied [AdaIN](https://arxiv.org/abs/1703.06868) (Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization) to the video
@@ -37,5 +69,5 @@ https://github.com/user-attachments/assets/02dcd40a-b44f-461f-a176-d8b37b51d442
 https://github.com/user-attachments/assets/796e3e29-a558-4542-8f3c-e75bf783e8c3
 
 
-
+-->
 
